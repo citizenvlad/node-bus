@@ -1,95 +1,110 @@
-const {
-  parsePage,
-  parseShow,
-  parseMagnet,
-} = require('./parsers');
-const https = require('https');
-const assert = require('assert');
-const cheerio = require('cheerio');
+const { parsePage, parseShow, parseMagnet } = require("./parsers");
+const https = require("https");
+const assert = require("assert");
+const cheerio = require("cheerio");
 
-const parseHTML = html => cheerio.load(html);
-const readStream = (stream, buffer = '') =>
-  new Promise((resolve, reject) => stream
-    .on('error', reject)
-    .on('data', chunk => buffer += chunk)
-    .on('end', () => resolve(buffer)));
+const parseHTML = (html) => cheerio.load(html);
+const readStream = (stream, buffer = "") =>
+  new Promise((resolve, reject) =>
+    stream
+      .on("error", reject)
+      .on("data", (chunk) => (buffer += chunk))
+      .on("end", () => resolve(buffer))
+  );
 
 const get = (url, options = {}) =>
-  new Promise(done => https.get(url, options, done));
+  new Promise((done) => https.get(url, options, done));
 
-const ensureStatusCode = expected => {
-  if (!Array.isArray(expected))
-    expected = [expected];
-  return res => {
+const ensureStatusCode = (expected) => {
+  if (!Array.isArray(expected)) expected = [expected];
+  return (res) => {
     const { statusCode } = res;
-    assert.ok(expected.includes(statusCode), `status code must be "${expected}" but actually "${statusCode}"`);
+    assert.ok(
+      expected.includes(statusCode),
+      `status code must be "${expected}" but actually "${statusCode}"`
+    );
     return res;
   };
-}
+};
 
-const www = 'https://www.javbus.com';
+const www = "https://www.javbus.com";
 
 /**
  * javbus
- * @param {*} param0 
+ * @param {*} param0
  */
 const javbus = ({ homepage = www } = {}) => {
   return {
     /**
      * page
-     * @param {*} n 
-     * @param {*} uncensored 
+     * @param {*} n
+     * @param {*} uncensored
      */
     page(n = 1, uncensored = false) {
-      return this.list('/' + [uncensored ? 'uncensored' : null, 'page', n].filter(Boolean).join('/'));
+      return this.list(
+        "/" +
+          [uncensored ? "uncensored" : null, "page", n]
+            .filter(Boolean)
+            .join("/")
+      );
     },
     /**
      * star
-     * @param {*} who 
-     * @param {*} n 
-     * @param {*} uncensored 
+     * @param {*} who
+     * @param {*} n
+     * @param {*} uncensored
      */
     star(who, n, uncensored = false) {
-      return this.list('/' + [uncensored ? 'uncensored' : null, 'star', who, n].filter(Boolean).join('/'));
+      return this.list(
+        "/" +
+          [uncensored ? "uncensored" : null, "star", who, n]
+            .filter(Boolean)
+            .join("/")
+      );
     },
     /**
      * genre
-     * @param {*} genre 
-     * @param {*} n 
-     * @param {*} uncensored 
+     * @param {*} genre
+     * @param {*} n
+     * @param {*} uncensored
      */
     genre(genre, n = 1, uncensored = false) {
-      return this.list('/' + [uncensored ? 'uncensored' : null, 'genre', genre, n].filter(Boolean).join('/'));
+      return this.list(
+        "/" +
+          [uncensored ? "uncensored" : null, "genre", genre, n]
+            .filter(Boolean)
+            .join("/")
+      );
     },
     /**
      * search
-     * @param {*} keyword 
-     * @param {*} n 
+     * @param {*} keyword
+     * @param {*} n
      */
     search(keyword, n = 1) {
       return this.list(`/search/${keyword}/${n}`);
     },
     /**
      * list
-     * @param {*} path 
+     * @param {*} path
      */
     list(path) {
-      return Promise
-        .resolve(homepage + path)
-        .then(get)
+      const headers = { "accept-language": "zh-CN" };
+      return Promise.resolve(homepage + path)
+        .then((url) => get(url, { headers }))
         .then(ensureStatusCode([200, 301]))
         .then(readStream)
         .then(parseHTML)
-        .then(parsePage)
+        .then(parsePage);
     },
     /**
      * show
-     * @param {*} id 
+     * @param {*} id
      */
     show(id) {
-      return Promise
-        .resolve(`${homepage}/${id}`)
-        .then(get)
+      const headers = { "accept-language": "zh-CN" };
+      return Promise.resolve(`${homepage}/${id}`)
+        .then((url) => get(url, { headers }))
         .then(ensureStatusCode(200))
         .then(readStream)
         .then(parseHTML)
@@ -97,21 +112,20 @@ const javbus = ({ homepage = www } = {}) => {
     },
     /**
      * magnet
-     * @param {*} gid 
+     * @param {*} gid
      */
     magnet(gid) {
       const headers = { referer: homepage };
-      const query = `gid=${gid}&uc=0&lang=en&floor=` + Date.now() % 1e3;
+      const query = `gid=${gid}&uc=0&lang=en&floor=` + (Date.now() % 1e3);
       const url = `${homepage}/ajax/uncledatoolsbyajax.php?${query}`;
-      return Promise
-        .resolve()
+      return Promise.resolve()
         .then(() => get(url, { headers }))
         .then(ensureStatusCode(200))
         .then(readStream)
-        .then(x => parseHTML(`<table>${x}</table>`))
+        .then((x) => parseHTML(`<table>${x}</table>`))
         .then(parseMagnet)
-        .then(files => files.filter(x => x.size && x.date))
-    }
+        .then((files) => files.filter((x) => x.size && x.date));
+    },
   };
 };
 
